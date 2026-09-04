@@ -1,0 +1,58 @@
+// TipMeBitcoin — SQLite for simple persistent local / single-instance deploy
+// For multi-instance production later, switch provider to "postgresql"
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Handle {
+  id               String   @id @default(cuid())
+  handle           String
+  normalizedHandle String   @unique
+  status           String   @default("active")
+  displayName      String?
+  bio              String?
+  bchAddress       String
+  tokenAddress     String?
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  ownershipProofs  OwnershipProof[]
+
+  @@index([normalizedHandle])
+  @@index([bchAddress])
+}
+
+model OwnershipProof {
+  id            String   @id @default(cuid())
+  handleId      String
+  proofType     String
+  challenge     String
+  signature     String?
+  transactionId String?
+  verifiedAt    DateTime?
+  expiration    DateTime
+  createdAt     DateTime @default(now())
+
+  handle        Handle   @relation(fields: [handleId], references: [id], onDelete: Cascade)
+
+  @@index([handleId])
+}
+
+model Challenge {
+  id         String   @id
+  action     String
+  handle     String
+  address    String
+  nonce      String
+  text       String
+  timestamp  Int
+  expiration Int
+  createdAt  DateTime @default(now())
+}
