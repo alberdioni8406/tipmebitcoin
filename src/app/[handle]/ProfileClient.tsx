@@ -28,7 +28,7 @@ export function ProfileClient({
   const [copied, setCopied] = useState<string | null>(null);
 
   const host = appUrl.replace(/^https?:\/\//, "");
-  const profileUrl = `${appUrl}/${handle}`;
+  const profileUrl = `\( {appUrl}/ \){handle}`;
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text).then(() => {
@@ -133,5 +133,52 @@ export function ProfileClient({
               onClick={() => copy(addr, "token")}
             >
               {copied === "token" ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-[var(--text-muted)] mt-4">
+          Address sharing only. Wallet-specific CashToken transaction
+          construction can be added later.
+        </p>
+      </div>
+    );
+  }
 
-... 
+  return (
+    <div className="max-w-md mx-auto px-4 py-12">
+      <div className="text-center mb-8">
+        <h1 className="font-mono text-2xl tracking-tight crt-subtle">
+          @{handle.toUpperCase()}
+        </h1>
+        {verified && (
+          <p className="mt-2 text-xs font-mono text-[var(--accent)]">
+            ● BCH ADDRESS VERIFIED
+          </p>
+        )}
+        {displayName && <p className="mt-3 text-lg">{displayName}</p>}
+        {bio && (
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{bio}</p>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <button className="btn-primary w-full" onClick={() => setMode("bch")}>
+          SEND BCH
+        </button>
+        <button className="btn-ghost w-full" onClick={() => setMode("token")}>
+          SEND CASHTOKENS
+        </button>
+        <button
+          className="btn-ghost w-full text-sm"
+          onClick={() => copy(profileUrl, "link")}
+        >
+          {copied === "link" ? "Link copied" : "COPY LINK"}
+        </button>
+      </div>
+
+      <p className="mt-10 text-center text-xs font-mono text-[var(--text-muted)]">
+        {host}/{handle}
+      </p>
+    </div>
+  );
+}
