@@ -1,21 +1,10 @@
 # TipMeBitcoin
 
-**Production domain:** https://tipmebitcoin.cash
-
 Non-custodial Bitcoin Cash tipping identity platform.
 
-## Quick start
+**V1 production URL:** https://tipmebitcoin.vercel.app
 
-```bash
-unzip tipmebitcoin.zip   # or clone the repo
-cd tipmebitcoin
-cp .env.example .env     # already contains SQLite + donation address
-npm install
-npx prisma db push       # creates ./dev.db
-npm run dev
-```
-
-Open http://localhost:3000
+> A future custom domain (e.g. `tipmebitcoin.cash`) can be added later by changing the `NEXT_PUBLIC_APP_URL` environment variable. V1 does **not** require or assume ownership of any `.cash` domain.
 
 ## Project donation address
 
@@ -25,27 +14,90 @@ bitcoincash:qrtv37u522gz8a5lezfqk5vukly93cu7gc8tn09040
 
 Configured in `src/config/project.ts` (single source of truth).
 
+## Architecture (V1)
+
+| Layer | Choice |
+|-------|--------|
+| Hosting | Vercel (serverless) |
+| App URL | `https://tipmebitcoin.vercel.app` |
+| Database | Hosted **PostgreSQL** (Neon recommended) |
+| Identity | Challenge + BCH message signature |
+| Custody | None — we never hold keys or funds |
+
+## Required environment variables
+
+Set these in Vercel → Project → Settings → Environment Variables:
+
+| Variable | Example | Required |
+|----------|---------|----------|
+| `DATABASE_URL` | `postgresql://…` (Neon pooled URL) | Yes |
+| `NEXT_PUBLIC_APP_URL` | `https://tipmebitcoin.vercel.app` | Yes |
+
+Optional:
+
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_PROJECT_DONATION_BCH_ADDRESS` | Override donation address |
+| `ALLOW_DEV_SIGNATURE_BYPASS` | Local testing only — **never** in production |
+
+See `.env.example`.
+
+## Local development
+
+1. Create a free Neon Postgres database: https://neon.tech
+2. Copy the connection string.
+3. Configure local env:
+
+```bash
+cp .env.example .env
+# Edit .env:
+# DATABASE_URL="postgresql://..."
+# NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+4. Install and push schema:
+
+```bash
+npm install
+npx prisma db push
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Deploy to Vercel
+
+1. Push this repository to GitHub.
+2. Import the project in Vercel.
+3. Add environment variables:
+   - `DATABASE_URL` → Neon (or other hosted Postgres) connection string
+   - `NEXT_PUBLIC_APP_URL` → `https://tipmebitcoin.vercel.app`
+4. Deploy.
+5. After first deploy, ensure tables exist:
+
+```bash
+# From your machine, with production DATABASE_URL in .env:
+npx prisma db push
+```
+
+Or run `prisma db push` as a one-time step from a machine that has the production URL.
+
 ## What is included
 
 - Claim flow with cryptographic ownership challenge
 - Public profiles with SEND BCH / SEND CASHTOKENS + internal QR codes
-- SQLite persistence via Prisma (easy local + single-instance deploy)
-- Message signature verification via `bitcoinjs-message` (compatible with Electron Cash and most BCH wallets)
+- PostgreSQL via Prisma (serverless-compatible)
+- Message signature verification via `bitcoinjs-message`
 - Reserved handles, rate limiting, input sanitization
 - Cypherpunk mobile-first UI
 - About page with project donation QR
 - Protocol direction page
-- Manage page stub (ready for full challenge-gated updates)
+- Static `/demo` profile (no database required)
+- `/api/health` for connectivity checks
 
 ## Signature verification
 
 Uses the classic Bitcoin Signed Message format that Electron Cash, Bitcoin.com wallet and most BCH tools support.
-
-Install dependency (already in package.json):
-
-```bash
-npm install bitcoinjs-message
-```
 
 Development bypass (never in production):
 
@@ -53,36 +105,14 @@ Development bypass (never in production):
 ALLOW_DEV_SIGNATURE_BYPASS=true
 ```
 
-Then paste `DEV_BYPASS_SIGNATURE` as the signature to test the claim flow.
+Then paste `DEV_BYPASS_SIGNATURE` as the signature to test the claim flow locally.
 
-## Database
+## Health check
 
-Default: SQLite file `dev.db`.
-
-```bash
-npx prisma db push
-npx prisma studio   # optional GUI
 ```
-
-To move to PostgreSQL later, change `provider` in `prisma/schema.prisma` and set a `DATABASE_URL`.
-
-## Deploy to Vercel
-
-1. Create a GitHub repository and push this code.
-2. Import the project in Vercel.
-3. Add environment variable `DATABASE_URL`  
-   - For a quick start you can use a Vercel Postgres / Neon / Turso SQLite-compatible URL,  
-   - or keep file-based SQLite only if you run a single persistent instance.
-4. Deploy.
-
-Note: pure file SQLite on Vercel serverless is ephemeral. For production multi-instance use a hosted Postgres or Turso/libsql.
-
-## Architecture notes
-
-- Hybrid: useful registry today, clean interfaces for future on-chain identity.
-- Non-custodial: we never hold keys or funds.
-- Verified badge = cryptographic control of the BCH address only.
-- QR codes are generated client-side (no external QR service).
+GET /api/health
+→ { "status": "ok", "app": "tipmebitcoin", "database": "connected" }
+```
 
 ## License
 
