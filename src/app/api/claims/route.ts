@@ -8,6 +8,7 @@ import {
   createChallenge,
   isChallengeExpired,
   verifyMessageSignature,
+  classifySignatureInput,
 } from "@/lib/verification";
 import {
   isHandleAvailable,
@@ -20,7 +21,6 @@ import { rateLimit, getClientIp, sanitizeText } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
-/** POST /api/claims — start challenge or verify signature + claim */
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = rateLimit(`claims:${ip}`, 20, 60_000);
@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
       const available = await isHandleAvailable(handleVal.normalized);
       if (!available) {
         return NextResponse.json(
-          { error: "Handle already claimed" },
+          { error: "This handle was claimed by someone else. Choose another handle." },
           { status: 409 }
         );
       }
     } catch {
       return NextResponse.json(
-        { error: "Service temporarily unavailable" },
+        { error: "Something went wrong on the server. Your BCH has not been spent." },
         { status: 503 }
       );
     }
@@ -63,11 +63,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: bchVal.error }, { status: 400 });
     }
 
+    // Deterministic token binding: null means TOKEN_ADDRESS: NONE in message
     let tokenNormalized: string | null = null;
     if (body.tokenAddress && String(body.tokenAddress).trim()) {
       const tokenVal = validateTokenAddress(String(body.tokenAddress));
       if (!tokenVal.ok) {
-        return NextResponse.json({ error: tokenVal.error }, { status: 400 });
+        return NextResponse.json(
+          { error: tokenVal.error || "The CashToken address is invalid." },
+          { status: 400 }
+        );
       }
       tokenNormalized = tokenVal.address.normalized;
     }
@@ -75,10 +79,9 @@ export async function POST(req: NextRequest) {
     const challenge = createChallenge(
       "CLAIM",
       handleVal.normalized,
-      bchVal.address.normalized
+      bchVal.address.normalized,
+      tokenNormalized
     );
-
-    void tokenNormalized;
 
     try {
       await saveChallenge(challenge);
@@ -94,6 +97,9 @@ export async function POST(req: NextRequest) {
         id: challenge.id,
         text: challenge.text,
         expiration: challenge.expiration,
+        handle: challenge.handle,
+        address: challenge.address,
+        tokenAddress: challenge.tokenAddress,
       },
     });
   }
@@ -109,17 +115,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const shape = classifySignatureInput(signature);
+    if (!shape.ok) {
+      return NextResponse.json({ error: shape.error }, { status: 400 });
+    }
+
     const challenge = await getChallenge(challengeId);
     if (!challenge) {
       return NextResponse.json(
-        { error: "Challenge not found or expired" },
+        {
+          error:
+            "This claim request expired or was not found. Generate a new one.",
+        },
         { status: 400 }
       );
     }
     if (isChallengeExpired(challenge)) {
       await consumeChallenge(challengeId);
       return NextResponse.json(
-        { error: "Challenge expired" },
+        { error: "This claim request expired. Generate a new one." },
         { status: 400 }
       );
     }
@@ -128,11 +142,15 @@ export async function POST(req: NextRequest) {
     if (!available) {
       await consumeChallenge(challengeId);
       return NextResponse.json(
-        { error: "Handle already claimed" },
+        {
+          error:
+            "This handle was claimed by someone else. Choose another handle.",
+        },
         { status: 409 }
       );
     }
 
+    // Verify against the EXACT persisted challenge text (includes TOKEN_ADDRESS)
     const sigResult = await verifyMessageSignature(
       challenge.address,
       challenge.text,
@@ -141,22 +159,21 @@ export async function POST(req: NextRequest) {
 
     if (!sigResult.valid) {
       return NextResponse.json(
-        { error: sigResult.error || "Invalid signature" },
+        {
+          error:
+            sigResult.error ||
+            "Invalid message signature. Make sure your wallet used Sign Message, not Sign Transaction.",
+        },
         { status: 400 }
       );
     }
 
-    let tokenNormalized: string | null = null;
-    if (body.tokenAddress && String(body.tokenAddress).trim()) {
-      const tokenVal = validateTokenAddress(String(body.tokenAddress));
-      if (tokenVal.ok) tokenNormalized = tokenVal.address.normalized;
-    }
-
+    // Token address comes ONLY from the persisted challenge — never from the client
     const result = await claimHandle({
       handle: challenge.handle,
       normalizedHandle: challenge.handle,
       bchAddress: challenge.address,
-      tokenAddress: tokenNormalized,
+      tokenAddress: challenge.tokenAddress,
       verified: true,
     });
 
