@@ -82,7 +82,6 @@ export async function isHandleAvailable(normalized: string): Promise<boolean> {
     });
     return count === 0;
   } catch {
-    // Fail closed on DB errors so we do not advertise availability incorrectly
     return false;
   }
 }
@@ -162,5 +161,48 @@ export async function getChallenge(
 ): Promise<ChallengeType | null> {
   try {
     const c = await prisma.challenge.findUnique({ where: { id } });
-    if (!c) r
-... 
+    if (!c) return null;
+    if (Math.floor(Date.now() / 1000) > c.expiration) {
+      await prisma.challenge.delete({ where: { id } }).catch(() => {});
+      return null;
+    }
+    return {
+      id: c.id,
+      action: c.action as ChallengeType["action"],
+      handle: c.handle,
+      address: c.address,
+      nonce: c.nonce,
+      timestamp: c.timestamp,
+      expiration: c.expiration,
+      text: c.text,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function consumeChallenge(id: string): Promise<void> {
+  await prisma.challenge.delete({ where: { id } }).catch(() => {});
+}
+
+export async function listHandles(limit = 50): Promise<HandleRecord[]> {
+  try {
+    const rows = await prisma.handle.findMany({
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map(toRecord);
+  } catch {
+    return [];
+  }
+}
+
+/** Lightweight connectivity check for /api/health */
+export async function checkDatabase(): Promise<boolean> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
