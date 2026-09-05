@@ -1,5 +1,4 @@
-// TipMeBitcoin V1 — PostgreSQL (required for Vercel serverless)
-// Local and production both use PostgreSQL via DATABASE_URL.
+// TipMeBitcoin V1 — PostgreSQL (Vercel serverless)
 
 generator client {
   provider = "prisma-client-js"
@@ -46,13 +45,16 @@ model OwnershipProof {
 }
 
 model Challenge {
-  id         String   @id
-  action     String
-  handle     String
-  address    String
-  nonce      String
-  text       String
-  timestamp  Int
-  expiration Int
-  createdAt  DateTime @default(now())
+  id           String   @id
+  action       String
+  handle       String
+  address      String
+  /// Exact CashToken address bound into the signed challenge text.
+  /// Null means none was included (TOKEN_ADDRESS: NONE in message).
+  tokenAddress String?
+  nonce        String
+  text         String
+  timestamp    Int
+  expiration   Int
+  createdAt    DateTime @default(now())
 }
