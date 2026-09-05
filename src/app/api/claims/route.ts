@@ -20,17 +20,15 @@ import { rateLimit, getClientIp, sanitizeText } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
+/** POST /api/claims — start challenge or verify signature + claim */
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = rateLimit(`claims:${ip}`, 20, 60_000);
   if (!rl.allowed) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded" },
-      { status: 429 }
-    );
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
@@ -40,27 +38,34 @@ export async function POST(req: NextRequest) {
   const action = body.action as string;
 
   if (action === "start") {
-    const handleVal = validateHandle(body.handle || "");
+    const handleVal = validateHandle(String(body.handle || ""));
     if (!handleVal.ok) {
       return NextResponse.json({ error: handleVal.error }, { status: 400 });
     }
 
-    const available = await isHandleAvailable(handleVal.normalized);
-    if (!available) {
+    try {
+      const available = await isHandleAvailable(handleVal.normalized);
+      if (!available) {
+        return NextResponse.json(
+          { error: "Handle already claimed" },
+          { status: 409 }
+        );
+      }
+    } catch {
       return NextResponse.json(
-        { error: "Handle already claimed" },
-        { status: 409 }
+        { error: "Service temporarily unavailable" },
+        { status: 503 }
       );
     }
 
-    const bchVal = validateBchAddress(body.bchAddress || "");
+    const bchVal = validateBchAddress(String(body.bchAddress || ""));
     if (!bchVal.ok) {
       return NextResponse.json({ error: bchVal.error }, { status: 400 });
     }
 
     let tokenNormalized: string | null = null;
     if (body.tokenAddress && String(body.tokenAddress).trim()) {
-      const tokenVal = validateTokenAddress(body.tokenAddress);
+      const tokenVal = validateTokenAddress(String(body.tokenAddress));
       if (!tokenVal.ok) {
         return NextResponse.json({ error: tokenVal.error }, { status: 400 });
       }
@@ -72,7 +77,17 @@ export async function POST(req: NextRequest) {
       handleVal.normalized,
       bchVal.address.normalized
     );
-    await saveChallenge(challenge);
+
+    void tokenNormalized;
+
+    try {
+      await saveChallenge(challenge);
+    } catch {
+      return NextResponse.json(
+        { error: "Unable to create challenge. Please try again." },
+        { status: 503 }
+      );
+    }
 
     return NextResponse.json({
       challenge: {
@@ -84,8 +99,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "verify") {
-    const challengeId = body.challengeId as string;
-    const signature = sanitizeText(body.signature || "", 500);
+    const challengeId = String(body.challengeId || "");
+    const signature = sanitizeText(String(body.signature || ""), 500);
 
     if (!challengeId || !signature) {
       return NextResponse.json(
@@ -109,7 +124,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Re-validate handle still free
     const available = await isHandleAvailable(challenge.handle);
     if (!available) {
       await consumeChallenge(challengeId);
@@ -132,10 +146,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Optional token address from original start (re-sent by client)
     let tokenNormalized: string | null = null;
     if (body.tokenAddress && String(body.tokenAddress).trim()) {
-      const tokenVal = validateTokenAddress(body.tokenAddress);
+      const tokenVal = validateTokenAddress(String(body.tokenAddress));
       if (tokenVal.ok) tokenNormalized = tokenVal.address.normalized;
     }
 
