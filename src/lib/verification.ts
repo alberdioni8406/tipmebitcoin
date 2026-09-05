@@ -1,11 +1,8 @@
 /**
- * Ownership verification — message signature (primary).
+ * Ownership verification — classic Bitcoin message signatures (BCH-compatible).
  *
- * Most BCH wallets (Electron Cash, Bitcoin.com, etc.) use the classic
- * "Bitcoin Signed Message:\n" format. We verify against that.
- *
- * Preferred library: bitcoinjs-message (widely compatible).
- * Fallback: reject with clear error until installed.
+ * Challenge text cryptographically binds handle, BCH address, and optional
+ * CashToken address. Verification must use the persisted challenge text only.
  */
 
 import { PROJECT } from "@/config/project";
@@ -17,6 +14,8 @@ export interface Challenge {
   action: "CLAIM" | "UPDATE" | "RECOVER";
   handle: string;
   address: string;
+  /** Normalized token address or null when absent (bound as TOKEN_ADDRESS: NONE). */
+  tokenAddress: string | null;
   nonce: string;
   timestamp: number;
   expiration: number;
@@ -37,20 +36,28 @@ function randomNonce(len = 24): string {
   return out;
 }
 
+/**
+ * Build a claim challenge.
+ * tokenAddress must already be normalized or null.
+ * Absence is always represented as TOKEN_ADDRESS: NONE (never empty/undefined).
+ */
 export function createChallenge(
   action: Challenge["action"],
   handle: string,
-  address: string
+  address: string,
+  tokenAddress: string | null = null
 ): Challenge {
   const nonce = randomNonce(24);
   const timestamp = Math.floor(Date.now() / 1000);
   const expiration = timestamp + PROJECT.challenge.ttlSeconds;
+  const tokenLine = tokenAddress ? tokenAddress : "NONE";
 
   const text = [
     PROJECT.challenge.prefix,
     `ACTION: ${action}`,
     `HANDLE: ${handle}`,
     `ADDRESS: ${address}`,
+    `TOKEN_ADDRESS: ${tokenLine}`,
     `NONCE: ${nonce}`,
     `TIMESTAMP: ${timestamp}`,
     `EXPIRATION: ${expiration}`,
@@ -61,6 +68,7 @@ export function createChallenge(
     action,
     handle,
     address,
+    tokenAddress,
     nonce,
     timestamp,
     expiration,
@@ -81,91 +89,66 @@ function tryBitcoinJsMessage() {
   }
 }
 
-/**
- * Verify a signed message against a CashAddr / legacy address.
- * Uses the standard Bitcoin message prefix that the majority of BCH wallets support.
- */
-export async function verifyMessageSignature(
-  address: string,
-  message: string,
-  signature: string
-): Promise<{ valid: boolean; error?: string }> {
-  if (!address || !message || !signature) {
-    return { valid: false, error: "Missing address, message or signature." };
-  }
-
-  // Development-only bypass
-  if (
-    process.env.NODE_ENV === "development" &&
-    process.env.ALLOW_DEV_SIGNATURE_BYPASS === "true" &&
-    signature.trim() === "DEV_BYPASS_SIGNATURE"
-  ) {
-    console.warn("[DEV] Signature bypass used — disable before production");
-    return { valid: true };
-  }
-
-  const bitcoinMessage = tryBitcoinJsMessage();
-  if (!bitcoinMessage) {
-    return {
-      valid: false,
-      error:
-        "Signature verification library missing. Run: npm install bitcoinjs-message",
-    };
-  }
-
+function tryBchAddr() {
   try {
-    // Strip bitcoincash: prefix for legacy-style verification if needed
-    // Many libraries accept CashAddr directly or the payload.
-    const cleanAddress = address.replace(/^bitcoincash:/i, "");
-
-    // Standard Bitcoin message format (compatible with Electron Cash etc.)
-    const valid = bitcoinMessage.verify(
-      message,
-      cleanAddress.startsWith("q") || cleanAddress.startsWith("p")
-        ? address // try full CashAddr first
-        : cleanAddress,
-      signature,
-      undefined, // messagePrefix → default "Bitcoin Signed Message:\n"
-      true // checkSegwitAlways / loose mode for broader compatibility
-    );
-
-    // If CashAddr form failed, try without prefix (some libs expect legacy-looking)
-    if (!valid) {
-      try {
-        const valid2 = bitcoinMessage.verify(message, cleanAddress, signature);
-        if (valid2) return { valid: true };
-      } catch {
-        /* ignore */
-      }
-    }
-
-    return valid
-      ? { valid: true }
-      : { valid: false, error: "Invalid signature for this address and message." };
-  } catch (err: unknown) {
-    return {
-      valid: false,
-      error: err instanceof Error ? err.message : "Signature verification failed.",
-    };
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("bchaddrjs") as typeof import("bchaddrjs");
+  } catch {
+    return null;
   }
 }
 
-export interface TransactionProofProvider {
-  name: string;
-  verify(proof: {
-    txid: string;
-    address: string;
-    challenge: string;
-  }): Promise<{ valid: boolean; error?: string }>;
+/** Convert CashAddr to legacy base58check for bitcoinjs-message. */
+export function cashAddrToLegacy(address: string): string | null {
+  const bchaddr = tryBchAddr();
+  if (!bchaddr) return null;
+  try {
+    if (!bchaddr.isValidAddress(address)) return null;
+    return bchaddr.toLegacyAddress(address);
+  } catch {
+    return null;
+  }
 }
 
-export const pendingTransactionProofProvider: TransactionProofProvider = {
-  name: "pending",
-  async verify() {
+/**
+ * Detect common non-signature pastes (tx hex, PSBT, etc.).
+ */
+export function classifySignatureInput(raw: string): {
+  ok: boolean;
+  error?: string;
+} {
+  const s = raw.trim();
+  if (!s) {
+    return { ok: false, error: "Signature is required." };
+  }
+
+  // Pure hex of significant length → almost certainly a transaction, not a message sig
+  if (/^[0-9a-fA-F]+$/.test(s) && s.length >= 100) {
     return {
-      valid: false,
+      ok: false,
       error:
-        "Transaction-based ownership proof is not implemented in v1. Use message signature.",
+        "Invalid message signature. This looks like transaction hex. Use Sign Message, not Sign Transaction.",
     };
-  },
-};
+  }
+
+  // PSBT marker
+  if (s.startsWith("cHNidP") || s.toLowerCase().startsWith("psbt")) {
+    return {
+      ok: false,
+      error:
+        "Invalid message signature. PSBT/transaction data was pasted. Use Sign Message instead.",
+    };
+  }
+
+  // Base64-ish: allow standard message signature alphabet
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(s)) {
+    return {
+      ok: false,
+      error:
+        "The signature format is invalid. TipMeBitcoin expects a Base64 message signature, not a transaction.",
+    };
+  }
+
+  const compact = s.replace(/\s+/g, "");
+ 
+... 
