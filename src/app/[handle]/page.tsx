@@ -11,9 +11,11 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props) {
+  if (params.handle.toLowerCase() === "demo") {
+    return { title: "@DEMO", description: "Demo profile" };
+  }
   const validation = validateHandle(params.handle);
   if (!validation.ok) return { title: "Not found" };
-
   try {
     const record = await findHandleByNormalized(validation.normalized);
     if (!record) return { title: "Not found" };
@@ -21,7 +23,7 @@ export async function generateMetadata({ params }: Props) {
       title: formatHandleDisplay(record.normalizedHandle),
       description:
         record.bio ||
-        `Tip ${record.normalizedHandle} with Bitcoin Cash`,
+        "Tip " + record.normalizedHandle + " with Bitcoin Cash",
     };
   } catch {
     return { title: "TipMeBitcoin" };
@@ -29,7 +31,6 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function ProfilePage({ params }: Props) {
-  // Static demo profile — no database required
   if (params.handle.toLowerCase() === "demo") {
     return (
       <ProfileClient
@@ -47,7 +48,7 @@ export default async function ProfilePage({ params }: Props) {
   const validation = validateHandle(params.handle);
   if (!validation.ok) notFound();
 
-  let record;
+  let record = null;
   try {
     record = await findHandleByNormalized(validation.normalized);
   } catch {
