@@ -14,26 +14,30 @@ interface Props {
   appUrl: string;
 }
 
-export function ProfileClient({
-  handle,
-  displayName,
-  bio,
-  bchAddress,
-  tokenAddress,
-  verified,
-  appUrl,
-}: Props) {
+export function ProfileClient(props: Props) {
+  const {
+    handle,
+    displayName,
+    bio,
+    bchAddress,
+    tokenAddress,
+    verified,
+    appUrl,
+  } = props;
+
   const [mode, setMode] = useState<"profile" | "bch" | "token">("profile");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
   const host = appUrl.replace(/^https?:\/\//, "");
-  const profileUrl = `\( {appUrl}/ \){handle}`;
+  const profileUrl = appUrl + "/" + handle;
 
   function copy(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(text).then(function () {
       setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
+      setTimeout(function () {
+        setCopied(null);
+      }, 2000);
     });
   }
 
@@ -42,16 +46,17 @@ export function ProfileClient({
     return (
       <div className="max-w-md mx-auto px-4 py-10">
         <button
-          onClick={() => setMode("profile")}
+          onClick={function () {
+            setMode("profile");
+          }}
           className="text-sm text-[var(--text-muted)] mb-6 hover:text-[var(--text)]"
         >
-          ← Back
+          Back
         </button>
         <h2 className="font-mono text-lg mb-1">SEND BCH</h2>
         <p className="text-sm text-[var(--text-muted)] mb-6">
           to @{handle.toUpperCase()}
         </p>
-
         <div className="space-y-4">
           <div>
             <label className="label">Amount (BCH, optional)</label>
@@ -60,13 +65,12 @@ export function ProfileClient({
               type="text"
               inputMode="decimal"
               value={amount}
-              onChange={(e) =>
-                setAmount(e.target.value.replace(/[^0-9.]/g, ""))
-              }
+              onChange={function (e) {
+                setAmount(e.target.value.replace(/[^0-9.]/g, ""));
+              }}
               placeholder="0.01"
             />
           </div>
-
           <div className="card text-center">
             <p className="text-xs text-[var(--text-muted)] mb-3 font-mono">
               Scan with wallet
@@ -75,7 +79,6 @@ export function ProfileClient({
               <QRCode value={uri} size={200} />
             </div>
           </div>
-
           <div>
             <label className="label">Address</label>
             <div className="flex gap-2">
@@ -84,13 +87,14 @@ export function ProfileClient({
               </code>
               <button
                 className="btn-ghost text-xs shrink-0"
-                onClick={() => copy(bchAddress, "addr")}
+                onClick={function () {
+                  copy(bchAddress, "addr");
+                }}
               >
                 {copied === "addr" ? "Copied" : "Copy"}
               </button>
             </div>
           </div>
-
           <p className="text-xs text-[var(--text-muted)]">
             Payment URI generated. Compatibility depends on the receiving
             wallet.
@@ -105,16 +109,17 @@ export function ProfileClient({
     return (
       <div className="max-w-md mx-auto px-4 py-10">
         <button
-          onClick={() => setMode("profile")}
+          onClick={function () {
+            setMode("profile");
+          }}
           className="text-sm text-[var(--text-muted)] mb-6 hover:text-[var(--text)]"
         >
-          ← Back
+          Back
         </button>
         <h2 className="font-mono text-lg mb-1">SEND CASHTOKENS</h2>
         <p className="text-sm text-[var(--text-muted)] mb-6">
           to @{handle.toUpperCase()}
         </p>
-
         <div className="card text-center mb-4">
           <p className="text-xs text-[var(--text-muted)] mb-3 font-mono">
             Scan address
@@ -123,14 +128,15 @@ export function ProfileClient({
             <QRCode value={addr} size={200} />
           </div>
         </div>
-
         <div>
           <label className="label">CashToken receiving address</label>
           <div className="flex gap-2">
             <code className="input-field flex-1 text-xs break-all">{addr}</code>
             <button
               className="btn-ghost text-xs shrink-0"
-              onClick={() => copy(addr, "token")}
+              onClick={function () {
+                copy(addr, "token");
+              }}
             >
               {copied === "token" ? "Copied" : "Copy"}
             </button>
@@ -150,32 +156,42 @@ export function ProfileClient({
         <h1 className="font-mono text-2xl tracking-tight crt-subtle">
           @{handle.toUpperCase()}
         </h1>
-        {verified && (
+        {verified ? (
           <p className="mt-2 text-xs font-mono text-[var(--accent)]">
-            ● BCH ADDRESS VERIFIED
+            BCH ADDRESS VERIFIED
           </p>
-        )}
-        {displayName && <p className="mt-3 text-lg">{displayName}</p>}
-        {bio && (
+        ) : null}
+        {displayName ? <p className="mt-3 text-lg">{displayName}</p> : null}
+        {bio ? (
           <p className="mt-2 text-sm text-[var(--text-muted)]">{bio}</p>
-        )}
+        ) : null}
       </div>
-
       <div className="space-y-3">
-        <button className="btn-primary w-full" onClick={() => setMode("bch")}>
+        <button
+          className="btn-primary w-full"
+          onClick={function () {
+            setMode("bch");
+          }}
+        >
           SEND BCH
         </button>
-        <button className="btn-ghost w-full" onClick={() => setMode("token")}>
+        <button
+          className="btn-ghost w-full"
+          onClick={function () {
+            setMode("token");
+          }}
+        >
           SEND CASHTOKENS
         </button>
         <button
           className="btn-ghost w-full text-sm"
-          onClick={() => copy(profileUrl, "link")}
+          onClick={function () {
+            copy(profileUrl, "link");
+          }}
         >
           {copied === "link" ? "Link copied" : "COPY LINK"}
         </button>
       </div>
-
       <p className="mt-10 text-center text-xs font-mono text-[var(--text-muted)]">
         {host}/{handle}
       </p>
