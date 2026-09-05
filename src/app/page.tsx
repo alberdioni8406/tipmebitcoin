@@ -2,6 +2,8 @@ import Link from "next/link";
 import { PROJECT } from "@/config/project";
 
 export default function HomePage() {
+  const host = PROJECT.appUrl.replace(/^https?:\/\//, "");
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 sm:py-20">
       <section className="text-center space-y-6">
@@ -22,7 +24,7 @@ export default function HomePage() {
           Create a public BCH tipping identity.
           <br />
           <span className="font-mono text-[var(--text)]">
-            tipmebitcoin.cash/yourname
+            {host}/yourname
           </span>
         </p>
         <div className="pt-4">
@@ -51,18 +53,22 @@ export default function HomePage() {
         <p className="font-mono text-xs text-[var(--text-muted)] mb-4">DEMO</p>
         <p className="text-sm mb-2">
           Example profile:{" "}
-          <Link href="/demo" className="text-[var(--accent)] font-mono hover:underline">
-            tipmebitcoin.cash/demo
+          <Link
+            href="/demo"
+            className="text-[var(--accent)] font-mono hover:underline"
+          >
+            {host}/demo
           </Link>
         </p>
         <p className="text-xs text-[var(--text-muted)]">
-          (Claim a real handle to create your own permanent identity.)
+          (Static demonstration — claim a real handle for a permanent identity.)
         </p>
       </section>
 
       <section className="mt-12 text-center text-sm text-[var(--text-muted)]">
         <p>
-          Cryptographic ownership · Hybrid architecture · Ready for BCH-native identity
+          Cryptographic ownership · Hybrid architecture · Ready for BCH-native
+          identity
         </p>
       </section>
     </div>
