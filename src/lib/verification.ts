@@ -142,10 +142,10 @@ export async function verifyMessageSignature(
     return valid
       ? { valid: true }
       : { valid: false, error: "Invalid signature for this address and message." };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       valid: false,
-      error: err?.message || "Signature verification failed.",
+      error: err instanceof Error ? err.message : "Signature verification failed.",
     };
   }
 }
