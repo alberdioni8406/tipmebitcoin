@@ -1,18 +1,33 @@
 /**
- * Central project configuration for TipMeBitcoin.
- * All environment-specific and project-level constants live here.
- * Never hardcode donation address or domain elsewhere.
+ * Central project configuration for TipMeBitcoin V1.
+ * Single source of truth for app URL, donation address, and feature flags.
+ *
+ * V1 production URL: https://tipmebitcoin.vercel.app
+ * Future custom domain (e.g. tipmebitcoin.cash) is an env change only.
  */
+
+function resolveAppUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
 
 export const PROJECT = {
   name: "TipMeBitcoin",
-  domain: "tipmebitcoin.cash",
+  /** Canonical V1 application origin (no trailing slash). */
+  appUrl: resolveAppUrl(),
   tagline: "YOUR HANDLE. YOUR ADDRESS. YOUR MONEY.",
   description:
     "Non-custodial Bitcoin Cash tipping identity. Create a memorable handle that resolves to your BCH and CashToken addresses. No email. No password. No custody.",
-  // Project donation address (set by owner). Change only here.
-  PROJECT_DONATION_BCH_ADDRESS: process.env.NEXT_PUBLIC_PROJECT_DONATION_BCH_ADDRESS || "bitcoincash:qrtv37u522gz8a5lezfqk5vukly93cu7gc8tn09040",
-  network: "mainnet" as const, // or "testnet"
+  // Project donation address — never change casually; single source of truth.
+  PROJECT_DONATION_BCH_ADDRESS:
+    process.env.NEXT_PUBLIC_PROJECT_DONATION_BCH_ADDRESS ||
+    "bitcoincash:qrtv37u522gz8a5lezfqk5vukly93cu7gc8tn09040",
+  network: "mainnet" as const,
   supportedAddressPrefixes: ["bitcoincash:"] as const,
   handle: {
     minLength: 3,
@@ -21,13 +36,14 @@ export const PROJECT = {
   },
   challenge: {
     ttlSeconds: 15 * 60, // 15 minutes
-    prefix: "TIPMEBITCOIN.CASH",
+    /** Challenge message brand prefix (not a live domain dependency). */
+    prefix: "TIPMEBITCOIN",
   },
   features: {
     messageSigning: true,
-    transactionProof: false, // pending safe non-custodial implementation
-    cashAccounts: false, // future
-    onChainIdentity: false, // future
+    transactionProof: false,
+    cashAccounts: false,
+    onChainIdentity: false,
   },
 } as const;
 
