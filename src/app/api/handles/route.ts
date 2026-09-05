@@ -5,14 +5,12 @@ import { rateLimit, getClientIp } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
+/** GET /api/handles?handle=name — availability check */
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = rateLimit(`handles:${ip}`, 60, 60_000);
   if (!rl.allowed) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded" },
-      { status: 429 }
-    );
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   const handleParam = req.nextUrl.searchParams.get("handle");
@@ -31,22 +29,28 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const available = await isHandleAvailable(validation.normalized);
-  if (!available) {
+  try {
+    const available = await isHandleAvailable(validation.normalized);
+    if (!available) {
+      return NextResponse.json({
+        available: false,
+        error: "Handle already claimed",
+      });
+    }
     return NextResponse.json({
-      available: false,
-      error: "Handle already claimed",
+      available: true,
+      normalized: validation.normalized,
     });
+  } catch {
+    return NextResponse.json(
+      { error: "Service temporarily unavailable" },
+      { status: 503 }
+    );
   }
-
-  return NextResponse.json({
-    available: true,
-    normalized: validation.normalized,
-  });
 }
 
+/** POST /api/handles — resolve handle to profile data */
 export async function POST(req: NextRequest) {
-  // Resolution endpoint (for future embed / lookup)
   try {
     const body = await req.json();
     const handle = body?.handle;
