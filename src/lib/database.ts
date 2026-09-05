@@ -1,7 +1,5 @@
 /**
  * Database layer — Prisma + PostgreSQL.
- * Requires DATABASE_URL pointing at a hosted Postgres instance.
- * Run once after provisioning: npx prisma db push
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -144,6 +142,7 @@ export async function saveChallenge(challenge: ChallengeType): Promise<void> {
       action: challenge.action,
       handle: challenge.handle,
       address: challenge.address,
+      tokenAddress: challenge.tokenAddress,
       nonce: challenge.nonce,
       text: challenge.text,
       timestamp: challenge.timestamp,
@@ -151,6 +150,7 @@ export async function saveChallenge(challenge: ChallengeType): Promise<void> {
     },
     update: {
       text: challenge.text,
+      tokenAddress: challenge.tokenAddress,
       expiration: challenge.expiration,
     },
   });
@@ -171,6 +171,7 @@ export async function getChallenge(
       action: c.action as ChallengeType["action"],
       handle: c.handle,
       address: c.address,
+      tokenAddress: c.tokenAddress ?? null,
       nonce: c.nonce,
       timestamp: c.timestamp,
       expiration: c.expiration,
@@ -197,7 +198,6 @@ export async function listHandles(limit = 50): Promise<HandleRecord[]> {
   }
 }
 
-/** Lightweight connectivity check for /api/health */
 export async function checkDatabase(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1`;

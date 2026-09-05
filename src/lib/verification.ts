@@ -150,5 +150,91 @@ export function classifySignatureInput(raw: string): {
   }
 
   const compact = s.replace(/\s+/g, "");
- 
-... 
+  // Classic Bitcoin message signatures are typically ~65 bytes → ~88 base64 chars
+  if (compact.length < 60 || compact.length > 200) {
+    return {
+      ok: false,
+      error:
+        "Invalid message signature length. Make sure your wallet used Sign Message, not Sign Transaction.",
+    };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Verify a classic Bitcoin Signed Message against a BCH CashAddr.
+ * Converts CashAddr → legacy before verification when possible.
+ */
+export async function verifyMessageSignature(
+  address: string,
+  message: string,
+  signature: string
+): Promise<{ valid: boolean; error?: string }> {
+  if (!address || !message || !signature) {
+    return { valid: false, error: "Missing address, message or signature." };
+  }
+
+  const shape = classifySignatureInput(signature);
+  if (!shape.ok) {
+    return { valid: false, error: shape.error };
+  }
+
+  // Development-only bypass — impossible unless NODE_ENV is development
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.ALLOW_DEV_SIGNATURE_BYPASS === "true" &&
+    signature.trim() === "DEV_BYPASS_SIGNATURE"
+  ) {
+    console.warn("[DEV] Signature bypass used — disable before production");
+    return { valid: true };
+  }
+
+  const bitcoinMessage = tryBitcoinJsMessage();
+  if (!bitcoinMessage) {
+    return {
+      valid: false,
+      error: "Signature verification is temporarily unavailable.",
+    };
+  }
+
+  const cleanedSig = signature.trim().replace(/\s+/g, "");
+  const legacy = cashAddrToLegacy(address);
+  const candidates: string[] = [];
+  if (legacy) candidates.push(legacy);
+  candidates.push(address);
+  const withoutPrefix = address.replace(/^bitcoincash:/i, "");
+  if (withoutPrefix !== address) candidates.push(withoutPrefix);
+
+  const errors: string[] = [];
+
+  for (const addr of candidates) {
+    try {
+      const valid = bitcoinMessage.verify(
+        message,
+        addr,
+        cleanedSig,
+        undefined,
+        true
+      );
+      if (valid) return { valid: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(msg);
+      // Map library length errors to clear UX copy
+      if (/length|invalid/i.test(msg)) {
+        return {
+          valid: false,
+          error:
+            "Invalid message signature. Make sure your wallet used Sign Message, not Sign Transaction.",
+        };
+      }
+    }
+  }
+
+  return {
+    valid: false,
+    error:
+      "Invalid message signature. This signature does not match the BCH address and challenge message.",
+  };
+}
