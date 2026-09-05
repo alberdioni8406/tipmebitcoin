@@ -1,7 +1,7 @@
 /**
- * Database layer — Prisma + SQLite.
- * Set DATABASE_URL="file:./dev.db" in .env
- * Then: npx prisma generate && npx prisma db push
+ * Database layer — Prisma + PostgreSQL.
+ * Requires DATABASE_URL pointing at a hosted Postgres instance.
+ * Run once after provisioning: npx prisma db push
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -12,7 +12,8 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    log:
+      process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") {
@@ -33,7 +34,19 @@ export interface HandleRecord {
   verified: boolean;
 }
 
-function toRecord(h: any): HandleRecord {
+function toRecord(h: {
+  id: string;
+  handle: string;
+  normalizedHandle: string;
+  status: string;
+  displayName: string | null;
+  bio: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  bchAddress: string;
+  tokenAddress: string | null;
+  verified: boolean;
+}): HandleRecord {
   return {
     id: h.id,
     handle: h.handle,
@@ -52,17 +65,26 @@ function toRecord(h: any): HandleRecord {
 export async function findHandleByNormalized(
   normalized: string
 ): Promise<HandleRecord | null> {
-  const h = await prisma.handle.findUnique({
-    where: { normalizedHandle: normalized },
-  });
-  return h ? toRecord(h) : null;
+  try {
+    const h = await prisma.handle.findUnique({
+      where: { normalizedHandle: normalized },
+    });
+    return h ? toRecord(h) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function isHandleAvailable(normalized: string): Promise<boolean> {
-  const count = await prisma.handle.count({
-    where: { normalizedHandle: normalized },
-  });
-  return count === 0;
+  try {
+    const count = await prisma.handle.count({
+      where: { normalizedHandle: normalized },
+    });
+    return count === 0;
+  } catch {
+    // Fail closed on DB errors so we do not advertise availability incorrectly
+    return false;
+  }
 }
 
 export async function claimHandle(params: {
@@ -86,11 +108,12 @@ export async function claimHandle(params: {
       },
     });
     return { ok: true, record: toRecord(h) };
-  } catch (e: any) {
-    if (e?.code === "P2002") {
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err?.code === "P2002") {
       return { ok: false, error: "Handle already claimed." };
     }
-    throw e;
+    return { ok: false, error: "Unable to claim handle. Please try again." };
   }
 }
 
@@ -137,32 +160,7 @@ export async function saveChallenge(challenge: ChallengeType): Promise<void> {
 export async function getChallenge(
   id: string
 ): Promise<ChallengeType | null> {
-  const c = await prisma.challenge.findUnique({ where: { id } });
-  if (!c) return null;
-  if (Math.floor(Date.now() / 1000) > c.expiration) {
-    await prisma.challenge.delete({ where: { id } }).catch(() => {});
-    return null;
-  }
-  return {
-    id: c.id,
-    action: c.action as ChallengeType["action"],
-    handle: c.handle,
-    address: c.address,
-    nonce: c.nonce,
-    timestamp: c.timestamp,
-    expiration: c.expiration,
-    text: c.text,
-  };
-}
-
-export async function consumeChallenge(id: string): Promise<void> {
-  await prisma.challenge.delete({ where: { id } }).catch(() => {});
-}
-
-export async function listHandles(limit = 50): Promise<HandleRecord[]> {
-  const rows = await prisma.handle.findMany({
-    take: limit,
-    orderBy: { createdAt: "desc" },
-  });
-  return rows.map(toRecord);
-}
+  try {
+    const c = await prisma.challenge.findUnique({ where: { id } });
+    if (!c) r
+... 
