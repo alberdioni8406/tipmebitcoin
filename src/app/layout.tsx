@@ -8,11 +8,11 @@ export const metadata: Metadata = {
     template: `%s · ${PROJECT.name}`,
   },
   description: PROJECT.description,
-  metadataBase: new URL(`https://${PROJECT.domain}`),
+  metadataBase: new URL(PROJECT.appUrl),
   openGraph: {
     title: PROJECT.name,
     description: PROJECT.description,
-    url: `https://${PROJECT.domain}`,
+    url: PROJECT.appUrl,
     siteName: PROJECT.name,
     type: "website",
   },
@@ -29,14 +29,23 @@ export default function RootLayout({
         <div className="min-h-screen flex flex-col">
           <header className="border-b border-[var(--border)] px-4 py-3">
             <div className="max-w-3xl mx-auto flex items-center justify-between">
-              <a href="/" className="font-mono text-sm tracking-widest text-[var(--accent)]">
-                TIPMEBITCOIN.CASH
+              <a
+                href="/"
+                className="font-mono text-sm tracking-widest text-[var(--accent)]"
+              >
+                TIPMEBITCOIN
               </a>
               <nav className="flex gap-4 text-sm">
-                <a href="/claim" className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                <a
+                  href="/claim"
+                  className="text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
                   Claim
                 </a>
-                <a href="/about" className="text-[var(--text-muted)] hover:text-[var(--text)]">
+                <a
+                  href="/about"
+                  className="text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
                   About
                 </a>
               </nav>
