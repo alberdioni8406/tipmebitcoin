@@ -1,9 +1,10 @@
-// TipMeBitcoin — SQLite for simple persistent local / single-instance deploy
-// For multi-instance production later, switch provider to "postgresql"
+// TipMeBitcoin V1 — PostgreSQL (required for Vercel serverless)
+// Local and production both use PostgreSQL via DATABASE_URL.
 
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -22,14 +23,14 @@ model Handle {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  ownershipProofs  OwnershipProof[]
+  ownershipProofs OwnershipProof[]
 
   @@index([normalizedHandle])
   @@index([bchAddress])
 }
 
 model OwnershipProof {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   handleId      String
   proofType     String
   challenge     String
@@ -37,9 +38,9 @@ model OwnershipProof {
   transactionId String?
   verifiedAt    DateTime?
   expiration    DateTime
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
-  handle        Handle   @relation(fields: [handleId], references: [id], onDelete: Cascade)
+  handle Handle @relation(fields: [handleId], references: [id], onDelete: Cascade)
 
   @@index([handleId])
 }
