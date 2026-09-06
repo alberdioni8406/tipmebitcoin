@@ -1,0 +1,5 @@
+Add to package.json dependencies:
+  "cashaddrjs": "^0.4.4",
+  "big-integer": "^1.6.52"
+
+(big-integer is used by the token-aware CashAddr encoder)
