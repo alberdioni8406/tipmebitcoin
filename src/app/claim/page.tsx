@@ -50,9 +50,11 @@ function clearStored() {
 
 function formatRemaining(expiration: number): string {
   const left = Math.max(0, expiration - Math.floor(Date.now() / 1000));
-  const m = Math.floor(left / 60);
-  const s = left % 60;
-  return `\( {m}: \){s.toString().padStart(2, "0")}`;
+  return (
+    Math.floor(left / 60) +
+    ":" +
+    (left % 60).toString().padStart(2, "0")
+  );
 }
 
 export default function ClaimPage() {
@@ -423,6 +425,7 @@ export default function ClaimPage() {
             <span className="font-mono text-xs break-all">{bchAddress}</span>
           </p>
 
+          {/* Primary: wallet sign if session may exist */}
           <button
             type="button"
             className="btn-primary w-full"
