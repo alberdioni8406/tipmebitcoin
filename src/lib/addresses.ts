@@ -15,7 +15,6 @@ export interface ValidatedAddress {
 
 function tryBchAddr() {
   try {
-    // Dynamic require so the app still builds if the package is not yet installed
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require("bchaddrjs") as typeof import("bchaddrjs");
   } catch {
@@ -23,11 +22,31 @@ function tryBchAddr() {
   }
 }
 
+/** Ensure bitcoincash: prefix and lowercase (no validation). */
+export function normalizeCashAddrInput(raw: string): string {
+  let s = raw.trim().toLowerCase();
+  if (!s) return s;
+  if (
+    !s.startsWith("bitcoincash:") &&
+    !s.startsWith("bchtest:") &&
+    !s.startsWith("bchreg:")
+  ) {
+    if (s.startsWith("q") || s.startsWith("p")) {
+      s = `bitcoincash:${s}`;
+    }
+  }
+  return s;
+}
+
 function basicCashAddrShape(addr: string): boolean {
   const cleaned = addr.trim().toLowerCase();
   const body = cleaned.startsWith("bitcoincash:")
     ? cleaned.slice("bitcoincash:".length)
-    : cleaned;
+    : cleaned.startsWith("bchtest:")
+      ? cleaned.slice("bchtest:".length)
+      : cleaned.startsWith("bchreg:")
+        ? cleaned.slice("bchreg:".length)
+        : cleaned;
   return (
     /^[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(body) &&
     body.length >= 20 &&
@@ -38,7 +57,7 @@ function basicCashAddrShape(addr: string): boolean {
 export function validateBchAddress(
   raw: string
 ): { ok: true; address: ValidatedAddress } | { ok: false; error: string } {
-  const trimmed = raw.trim();
+  const trimmed = normalizeCashAddrInput(raw);
   if (!trimmed) {
     return { ok: false, error: "BCH address is required." };
   }
@@ -56,20 +75,19 @@ export function validateBchAddress(
       if (PROJECT.network === "mainnet" && network !== "mainnet") {
         return {
           ok: false,
-          error: "Testnet/regtest addresses are not accepted on mainnet.",
+          error: "This address belongs to the wrong Bitcoin Cash network.",
         };
       }
       const normalized = bchaddr.toCashAddress(trimmed);
       return {
         ok: true,
-        address: { original: trimmed, normalized, kind: "bch" },
+        address: { original: raw.trim(), normalized, kind: "bch" },
       };
     } catch {
       return { ok: false, error: "Invalid Bitcoin Cash address." };
     }
   }
 
-  // Fallback shape check
   if (!basicCashAddrShape(trimmed)) {
     return {
       ok: false,
@@ -78,34 +96,39 @@ export function validateBchAddress(
     };
   }
 
-  let normalized = trimmed.toLowerCase();
-  if (!normalized.startsWith("bitcoincash:")) {
-    normalized = `bitcoincash:${normalized}`;
-  }
   if (
     PROJECT.network === "mainnet" &&
-    (normalized.startsWith("bchtest:") || normalized.startsWith("bchreg:"))
+    (trimmed.startsWith("bchtest:") || trimmed.startsWith("bchreg:"))
   ) {
     return {
       ok: false,
-      error: "Testnet/regtest addresses are not accepted on mainnet.",
+      error: "This address belongs to the wrong Bitcoin Cash network.",
     };
   }
 
   return {
     ok: true,
-    address: { original: trimmed, normalized, kind: "bch" },
+    address: { original: raw.trim(), normalized: trimmed, kind: "bch" },
   };
 }
 
+/**
+ * Optional token address. Empty / whitespace = not provided (ok to skip).
+ * Same format rules as BCH CashAddr (token-capable addresses use the same encoding).
+ */
 export function validateTokenAddress(
   raw: string
 ): { ok: true; address: ValidatedAddress } | { ok: false; error: string } {
-  if (!raw.trim()) {
+  if (!raw || !String(raw).trim()) {
     return { ok: false, error: "Token address is required when provided." };
   }
   const result = validateBchAddress(raw);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: "The CashToken address is invalid.",
+    };
+  }
   return {
     ok: true,
     address: { ...result.address, kind: "token" },
