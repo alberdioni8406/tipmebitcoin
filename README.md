@@ -14,7 +14,7 @@ Claim a short handle → prove control of your BCH address with a signed message
 |--------|--------|
 | **Handle identity** | `@yourname` public profile with tip addresses |
 | **Cryptographic claim** | Challenge–response BCH message signature |
-| **WalletConnect** | Cashonize, Paytaca, Zapit and other BCH WC wallets |
+| **WalletConnect** | Cashonize, Paytaca, Selene and other BCH WC wallets |
 | **Manual signing** | Electron Cash / desktop “Sign Message” fallback |
 | **CashTokens** | Token-aware addresses (`z…` / `r…`) auto-derived from BCH CashAddr |
 | **QR codes** | Built-in QR for BCH and CashToken tips |
