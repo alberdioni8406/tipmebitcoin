@@ -9,12 +9,36 @@ export const metadata: Metadata = {
   },
   description: PROJECT.description,
   metadataBase: new URL(PROJECT.appUrl),
+  applicationName: PROJECT.name,
+  keywords: [
+    "Bitcoin Cash",
+    "BCH",
+    "CashTokens",
+    "tipping",
+    "non-custodial",
+    "TipMeBitcoin",
+  ],
+  authors: [{ name: PROJECT.name }],
   openGraph: {
-    title: PROJECT.name,
+    title: `${PROJECT.name} — BCH Tipping Identity`,
     description: PROJECT.description,
     url: PROJECT.appUrl,
     siteName: PROJECT.name,
+    locale: "en_US",
     type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: `${PROJECT.name} — BCH Tipping Identity`,
+    description: PROJECT.description,
+  },
+  icons: {
+    icon: [{ url: "/icon", type: "image/png" }],
+    apple: [{ url: "/icon", type: "image/png" }],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
