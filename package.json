@@ -23,7 +23,8 @@
     "date-fns": "^3.6.0",
     "bchaddrjs": "^0.5.2",
     "bitcoinjs-message": "^2.2.0",
-    "qrcode.react": "^3.1.0"
+    "qrcode.react": "^3.1.0",
+    "@walletconnect/sign-client": "^2.21.0"
   },
   "devDependencies": {
     "typescript": "^5",
