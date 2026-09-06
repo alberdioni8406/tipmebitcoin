@@ -31,7 +31,7 @@ export function normalizeCashAddrInput(raw: string): string {
     !s.startsWith("bchtest:") &&
     !s.startsWith("bchreg:")
   ) {
-    if (s.startsWith("q") || s.startsWith("p")) {
+    if (s.startsWith("q") || s.startsWith("p") || s.startsWith("z") || s.startsWith("r")) {
       s = `bitcoincash:${s}`;
     }
   }
@@ -47,8 +47,9 @@ function basicCashAddrShape(addr: string): boolean {
       : cleaned.startsWith("bchreg:")
         ? cleaned.slice("bchreg:".length)
         : cleaned;
+  // q/p = BCH; z/r = token-aware (CashTokens CHIP)
   return (
-    /^[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(body) &&
+    /^[qpzr][qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(body) &&
     body.length >= 20 &&
     body.length <= 100
   );
@@ -113,8 +114,9 @@ export function validateBchAddress(
 }
 
 /**
- * Optional token address. Empty / whitespace = not provided (ok to skip).
- * Same format rules as BCH CashAddr (token-capable addresses use the same encoding).
+ * Token-aware CashAddr (z… / r…) or standard q…/p… accepted.
+ * bchaddrjs does not understand token types, so we use shape + checksum via
+ * conversion when needed.
  */
 export function validateTokenAddress(
   raw: string
@@ -122,16 +124,35 @@ export function validateTokenAddress(
   if (!raw || !String(raw).trim()) {
     return { ok: false, error: "Token address is required when provided." };
   }
-  const result = validateBchAddress(raw);
-  if (!result.ok) {
+  const trimmed = normalizeCashAddrInput(raw);
+  if (!basicCashAddrShape(trimmed)) {
+    return { ok: false, error: "The CashToken address is invalid." };
+  }
+  if (
+    PROJECT.network === "mainnet" &&
+    (trimmed.startsWith("bchtest:") || trimmed.startsWith("bchreg:"))
+  ) {
     return {
       ok: false,
-      error: "The CashToken address is invalid.",
+      error: "This address belongs to the wrong Bitcoin Cash network.",
     };
   }
+  // Standard q/p — validate fully via bchaddr when possible
+  const body = trimmed.split(":")[1] || "";
+  if (body.startsWith("q") || body.startsWith("p")) {
+    const result = validateBchAddress(trimmed);
+    if (!result.ok) {
+      return { ok: false, error: "The CashToken address is invalid." };
+    }
+    return {
+      ok: true,
+      address: { ...result.address, kind: "token" },
+    };
+  }
+  // z/r token-aware — accept shape-valid addresses
   return {
     ok: true,
-    address: { ...result.address, kind: "token" },
+    address: { original: raw.trim(), normalized: trimmed, kind: "token" },
   };
 }
 
