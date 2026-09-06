@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WalletConnectPanel } from "@/components/WalletConnectPanel";
 import { walletConnectBchAdapter } from "@/lib/wallet/wc-bch";
+import { toTokenAwareAddress } from "@/lib/tokenAddress";
 
 const STORAGE_KEY = "tipmebitcoin_claim_v1";
 
@@ -266,13 +267,14 @@ export default function ClaimPage() {
       addr &&
       !addr.toLowerCase().startsWith("bitcoincash:") &&
       !addr.toLowerCase().startsWith("bchtest:") &&
-      (addr.startsWith("q") || addr.startsWith("p"))
+      /^[qpzr]/i.test(addr)
     ) {
       addr = `bitcoincash:${addr}`;
     }
     setBchAddress(addr);
-    // Modern BCH CashAddr is token-capable — bind same address for CashTokens
-    setTokenAddress(addr);
+    // Convert q…/p… → token-aware z…/r… (CashTokens CHIP)
+    const tokenAddr = toTokenAwareAddress(addr) || addr;
+    setTokenAddress(tokenAddr);
     setFromWalletConnect(true);
     setWalletName(name || "BCH wallet");
     setError("");
@@ -357,8 +359,12 @@ export default function ClaimPage() {
 
           {fromWalletConnect ? (
             <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] p-3">
-              CashToken receiving address: same as connected BCH address
-              (token-capable CashAddr). No extra field needed.
+              CashToken address (auto):{" "}
+              <span className="font-mono text-[var(--accent)] break-all">
+                {tokenAddress || "converting…"}
+              </span>
+              <br />
+              Converted from your BCH address to token-aware form (z… / r…).
             </p>
           ) : (
             <div>
