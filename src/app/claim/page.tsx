@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { WalletConnectPanel } from "@/components/WalletConnectPanel";
+import { walletConnectBchAdapter } from "@/lib/wallet/wc-bch";
 
 const STORAGE_KEY = "tipmebitcoin_claim_v1";
 
@@ -34,7 +36,7 @@ function saveStored(data: ClaimStored) {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
-    /* ignore quota */
+    /* ignore */
   }
 }
 
@@ -72,8 +74,10 @@ export default function ClaimPage() {
   const [loading, setLoading] = useState(false);
   const [remaining, setRemaining] = useState("");
   const [restored, setRestored] = useState(false);
+  const [walletName, setWalletName] = useState<string | null>(null);
+  const [wcSigning, setWcSigning] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
-  // Restore claim session after refresh / app switch
   useEffect(() => {
     const stored = loadStored();
     if (stored) {
@@ -87,10 +91,10 @@ export default function ClaimPage() {
       });
       setStep("sign");
       setRestored(true);
+      setShowManual(true);
     }
   }, []);
 
-  // Countdown while on sign step
   useEffect(() => {
     if (!challenge || step !== "sign") return;
     function tick() {
@@ -129,8 +133,8 @@ export default function ClaimPage() {
     }
   }
 
-  async function startClaim(e: React.FormEvent) {
-    e.preventDefault();
+  async function startClaim(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setError("");
     setLoading(true);
     try {
@@ -165,6 +169,7 @@ export default function ClaimPage() {
       });
       setStep("sign");
       setRestored(false);
+      setShowManual(false);
     } catch {
       setError("Network error");
     } finally {
@@ -172,19 +177,19 @@ export default function ClaimPage() {
     }
   }
 
-  async function submitSignature(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitSignature(sig?: string) {
+    const signatureToSend = (sig ?? signature).trim();
+    if (!signatureToSend || !challenge) return;
     setError("");
     setLoading(true);
     try {
-      // Do not send tokenAddress on verify — server uses persisted challenge only
       const res = await fetch("/api/claims", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "verify",
-          challengeId: challenge?.id,
-          signature,
+          challengeId: challenge.id,
+          signature: signatureToSend,
         }),
       });
       const data = await res.json();
@@ -203,6 +208,34 @@ export default function ClaimPage() {
     }
   }
 
+  async function signWithWallet() {
+    if (!challenge) return;
+    setWcSigning(true);
+    setError("");
+    try {
+      const result = await walletConnectBchAdapter.signMessage({
+        message: challenge.text,
+        address: bchAddress || undefined,
+        userPrompt:
+          "Sign this TipMeBitcoin claim message. No BCH will be spent.",
+      });
+      setSignature(result.signature);
+      if (result.address && !bchAddress) {
+        setBchAddress(result.address);
+      }
+      await submitSignature(result.signature);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Wallet declined or failed to sign.";
+      setError(msg);
+      setShowManual(true);
+    } finally {
+      setWcSigning(false);
+    }
+  }
+
   function resetChallenge() {
     clearStored();
     setChallenge(null);
@@ -210,11 +243,18 @@ export default function ClaimPage() {
     setError("");
     setStep("form");
     setRestored(false);
+    setShowManual(false);
   }
 
   function copyChallenge() {
     if (!challenge) return;
     navigator.clipboard.writeText(challenge.text).catch(() => {});
+  }
+
+  function onWalletConnected(address: string, name?: string) {
+    setBchAddress(address);
+    setWalletName(name || "BCH wallet");
+    setError("");
   }
 
   return (
@@ -223,8 +263,8 @@ export default function ClaimPage() {
         CLAIM YOUR BCH IDENTITY
       </h1>
       <p className="text-sm text-[var(--text-muted)] mb-8">
-        No email. No password. Prove control of your BCH address with Sign
-        Message. We never ask for seed phrases or private keys.
+        No email. No password. Prove control of your BCH address. We never ask
+        for seed phrases or private keys. No BCH is spent.
       </p>
 
       {step === "form" && (
@@ -265,8 +305,21 @@ export default function ClaimPage() {
             )}
           </div>
 
-          <div>
-            <label className="label">BCH RECEIVING ADDRESS</label>
+          <div className="space-y-3">
+            <p className="label">BCH ADDRESS</p>
+            <WalletConnectPanel
+              onConnected={onWalletConnected}
+              onError={setError}
+              disabled={loading}
+            />
+            {walletName && bchAddress && (
+              <p className="text-xs text-[var(--accent)] font-mono">
+                Connected ({walletName}): {bchAddress.slice(0, 20)}…
+              </p>
+            )}
+            <p className="text-xs text-[var(--text-muted)] text-center">
+              — or paste address —
+            </p>
             <input
               className="input-field"
               value={bchAddress}
@@ -291,14 +344,13 @@ export default function ClaimPage() {
               spellCheck={false}
             />
             <p className="text-xs text-[var(--text-muted)] mt-1">
-              If set, it is bound into the signed challenge and cannot be
-              changed after signing.
+              Bound into the signed challenge; cannot be changed after signing.
             </p>
           </div>
 
           <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] p-3">
-            Your verified BCH address is your recovery authority. Keep control
-            of your wallet. We never ask for your recovery phrase.
+            Your verified BCH address is your recovery authority. Private keys
+            stay in your wallet.
           </p>
 
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
@@ -306,15 +358,15 @@ export default function ClaimPage() {
           <button
             type="submit"
             className="btn-primary w-full"
-            disabled={loading}
+            disabled={loading || !bchAddress}
           >
-            {loading ? "Processing…" : "CONTINUE TO SIGN MESSAGE"}
+            {loading ? "Processing…" : "CONTINUE"}
           </button>
         </form>
       )}
 
       {step === "sign" && challenge && (
-        <form onSubmit={submitSignature} className="space-y-5">
+        <div className="space-y-5">
           {restored && (
             <p className="text-xs text-[var(--accent)] border border-[var(--border)] p-2">
               Claim session restored after refresh or app switch.
@@ -337,51 +389,84 @@ export default function ClaimPage() {
           </div>
 
           <p className="text-sm">
-            Sign this <strong>exact</strong> message with the wallet that
-            controls the BCH address. Use <strong>Sign Message</strong> — not
-            Sign Transaction.
+            Prove control of{" "}
+            <span className="font-mono text-xs break-all">{bchAddress}</span>
           </p>
 
-          <pre className="card font-mono text-xs whitespace-pre-wrap break-all overflow-x-auto max-h-64">
-            {challenge.text}
-          </pre>
+          {/* Primary: wallet sign if session may exist */}
+          <button
+            type="button"
+            className="btn-primary w-full"
+            disabled={loading || wcSigning || remaining === "0:00"}
+            onClick={signWithWallet}
+          >
+            {wcSigning
+              ? "Waiting for wallet signature…"
+              : "SIGN WITH CONNECTED WALLET"}
+          </button>
+          <p className="text-xs text-[var(--text-muted)] text-center">
+            No BCH is spent. Approve the Sign Message request in your wallet.
+          </p>
 
           <button
             type="button"
-            className="btn-ghost text-xs"
-            onClick={copyChallenge}
+            className="btn-ghost w-full text-xs"
+            onClick={() => setShowManual((v) => !v)}
           >
-            COPY MESSAGE
+            {showManual
+              ? "Hide manual signing"
+              : "OR MANUAL MESSAGE SIGNING"}
           </button>
 
-          <div>
-            <label className="label">SIGNATURE (Base64)</label>
-            <textarea
-              className="input-field min-h-[100px]"
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder="Paste the Base64 message signature from your wallet…"
-              required
-              spellCheck={false}
-            />
-          </div>
-
-          <p className="text-xs text-[var(--text-muted)]">
-            Compatible: Electron Cash desktop (Tools → Sign/Verify Message),
-            Bitcoin.com wallet message signing, and other wallets that support
-            classic Bitcoin message signatures. Mobile Electron Cash often lacks
-            Sign Message — use a wallet that supports it, or a desktop wallet.
-          </p>
+          {showManual && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitSignature();
+              }}
+              className="space-y-4 border border-[var(--border)] p-4"
+            >
+              <p className="text-sm">
+                Sign this <strong>exact</strong> message with{" "}
+                <strong>Sign Message</strong> (not Sign Transaction).
+              </p>
+              <pre className="card font-mono text-xs whitespace-pre-wrap break-all overflow-x-auto max-h-48">
+                {challenge.text}
+              </pre>
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={copyChallenge}
+              >
+                COPY MESSAGE
+              </button>
+              <div>
+                <label className="label">SIGNATURE (Base64)</label>
+                <textarea
+                  className="input-field min-h-[100px]"
+                  value={signature}
+                  onChange={(e) => setSignature(e.target.value)}
+                  placeholder="Paste Base64 message signature…"
+                  required
+                  spellCheck={false}
+                />
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">
+                Electron Cash desktop: Tools → Sign/Verify Message. Mobile
+                Electron Cash often lacks Sign Message — use Cashonize/Paytaca
+                via Connect, or a desktop wallet.
+              </p>
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={loading || remaining === "0:00"}
+              >
+                {loading ? "Verifying…" : "VERIFY & CLAIM"}
+              </button>
+            </form>
+          )}
 
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-
-          <button
-            type="submit"
-            className="btn-primary w-full"
-            disabled={loading || remaining === "0:00"}
-          >
-            {loading ? "Verifying…" : "VERIFY & CLAIM"}
-          </button>
 
           <button
             type="button"
@@ -392,7 +477,7 @@ export default function ClaimPage() {
               ? "GENERATE NEW CHALLENGE"
               : "Cancel and start over"}
           </button>
-        </form>
+        </div>
       )}
 
       {step === "done" && (
