@@ -7,26 +7,46 @@
  *   2 = Token-Aware P2PKH  → z…
  *   3 = Token-Aware P2SH   → r…
  *
- * Same 20-byte hash; only type bits + checksum change.
  * Spec: https://cashtokens.org/docs/spec/chip
- *
- * Uses cashaddrjs for decode; custom encode for token types (cashaddrjs
- * only ships P2PKH/P2SH).
  */
 
-function tryCashAddr() {
+/* eslint-disable @typescript-eslint/no-require-imports */
+
+interface CashAddrDecoded {
+  prefix: string;
+  type: string;
+  hash: Uint8Array;
+}
+
+interface CashAddrModule {
+  decode: (address: string) => CashAddrDecoded;
+  encode: (prefix: string, type: string, hash: Uint8Array) => string;
+}
+
+interface BigIntegerInstance {
+  shiftRight: (n: number) => BigIntegerInstance;
+  and: (n: number) => BigIntegerInstance;
+  shiftLeft: (n: number) => BigIntegerInstance;
+  xor: (n: number) => BigIntegerInstance;
+  equals: (n: number) => boolean;
+  toJSNumber: () => number;
+}
+
+interface BigIntegerFn {
+  (n: number): BigIntegerInstance;
+}
+
+function tryCashAddr(): CashAddrModule | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("cashaddrjs") as typeof import("cashaddrjs");
+    return require("cashaddrjs") as CashAddrModule;
   } catch {
     return null;
   }
 }
 
-function tryBigInt() {
+function tryBigInt(): BigIntegerFn | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("big-integer") as typeof import("big-integer");
+    return require("big-integer") as BigIntegerFn;
   } catch {
     return null;
   }
@@ -59,10 +79,7 @@ function convertBits(
   return ret;
 }
 
-/**
- * Encode hash with explicit CashAddr type bits (0–3).
- * typeBits: 0=P2PKH, 1=P2SH, 2=token-P2PKH, 3=token-P2SH
- */
+/** Encode hash with CashAddr type bits (0–3). */
 function encodeWithTypeBits(
   prefix: string,
   typeBits: number,
@@ -70,28 +87,27 @@ function encodeWithTypeBits(
 ): string | null {
   const bigInt = tryBigInt();
   if (!bigInt) return null;
-
-  // version byte = (typeBits << 3) | sizeBits ; sizeBits 0 = 20 bytes
   if (hash.length !== 20) return null;
-  const versionByte = (typeBits << 3) | 0;
 
+  const versionByte = (typeBits << 3) | 0;
   const payload8 = new Uint8Array(1 + hash.length);
   payload8[0] = versionByte;
   payload8.set(hash, 1);
   const payload5 = convertBits(payload8, 8, 5, true);
 
-  // prefix as uint5 + separator 0
   const prefixData: number[] = [];
   for (let i = 0; i < prefix.length; i++) {
     prefixData.push(prefix.charCodeAt(i) & 31);
   }
   prefixData.push(0);
 
-  // polymod (same generators as cashaddrjs / cashaddr.md)
+  // Same generators as cashaddrjs / cashaddr.md
   const GENERATOR = [
     0x98f2bc8e61, 0x79b76d99e2, 0xf33e5fb3c4, 0xae2eabe2a8, 0x1e4f43e470,
   ];
-  const checksumData = prefixData.concat(payload5).concat([0, 0, 0, 0, 0, 0, 0, 0]);
+  const checksumData = prefixData
+    .concat(payload5)
+    .concat([0, 0, 0, 0, 0, 0, 0, 0]);
   let checksum = bigInt(1);
   for (let i = 0; i < checksumData.length; i++) {
     const value = checksumData[i];
@@ -135,7 +151,7 @@ function normalizeInput(raw: string): string {
 
 /**
  * Convert q…/p… BCH address to z…/r… token-aware address.
- * If already token-aware, returns normalized form.
+ * If already token-aware, returns normalized form when possible.
  */
 export function toTokenAwareAddress(raw: string): string | null {
   const cashaddr = tryCashAddr();
@@ -145,21 +161,18 @@ export function toTokenAwareAddress(raw: string): string | null {
   if (!addr) return null;
 
   try {
-    // cashaddrjs only decodes q/p types successfully
     const decoded = cashaddr.decode(addr);
     const typeBits =
       decoded.type === "P2SH" || decoded.type === "p2sh" ? 3 : 2;
     return encodeWithTypeBits(decoded.prefix, typeBits, decoded.hash);
   } catch {
-    // Maybe already token-aware (z/r) — cashaddrjs may reject.
-    // Fall back: if starts with z or r, return as-is when shape is ok.
     const body = addr.includes(":")
       ? addr.split(":")[1]
       : addr.replace(/^bitcoincash:/i, "");
     if (body && (body.startsWith("z") || body.startsWith("r"))) {
-      return addr.toLowerCase().startsWith("bitcoincash:") ||
-        addr.toLowerCase().startsWith("bchtest:")
-        ? addr.toLowerCase()
+      const lower = addr.toLowerCase();
+      return lower.startsWith("bitcoincash:") || lower.startsWith("bchtest:")
+        ? lower
         : `bitcoincash:${body.toLowerCase()}`;
     }
     return null;
