@@ -14,30 +14,28 @@ interface Props {
   appUrl: string;
 }
 
-export function ProfileClient(props: Props) {
-  const {
-    handle,
-    displayName,
-    bio,
-    bchAddress,
-    tokenAddress,
-    verified,
-    appUrl,
-  } = props;
-
+export function ProfileClient({
+  handle,
+  displayName,
+  bio,
+  bchAddress,
+  tokenAddress,
+  verified,
+  appUrl,
+}: Props) {
   const [mode, setMode] = useState<"profile" | "bch" | "token">("profile");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
   const host = appUrl.replace(/^https?:\/\//, "");
-  const profileUrl = appUrl + "/" + handle;
+  const profileUrl = `${appUrl}/${handle}`;
+  // Modern BCH CashAddr is token-capable; use BCH address when no separate token set
+  const effectiveToken = tokenAddress || bchAddress;
 
   function copy(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(function () {
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
-      setTimeout(function () {
-        setCopied(null);
-      }, 2000);
+      setTimeout(() => setCopied(null), 2000);
     });
   }
 
@@ -46,9 +44,7 @@ export function ProfileClient(props: Props) {
     return (
       <div className="max-w-md mx-auto px-4 py-10">
         <button
-          onClick={function () {
-            setMode("profile");
-          }}
+          onClick={() => setMode("profile")}
           className="text-sm text-[var(--text-muted)] mb-6 hover:text-[var(--text)]"
         >
           Back
@@ -65,9 +61,9 @@ export function ProfileClient(props: Props) {
               type="text"
               inputMode="decimal"
               value={amount}
-              onChange={function (e) {
-                setAmount(e.target.value.replace(/[^0-9.]/g, ""));
-              }}
+              onChange={(e) =>
+                setAmount(e.target.value.replace(/[^0-9.]/g, ""))
+              }
               placeholder="0.01"
             />
           </div>
@@ -87,31 +83,22 @@ export function ProfileClient(props: Props) {
               </code>
               <button
                 className="btn-ghost text-xs shrink-0"
-                onClick={function () {
-                  copy(bchAddress, "addr");
-                }}
+                onClick={() => copy(bchAddress, "addr")}
               >
                 {copied === "addr" ? "Copied" : "Copy"}
               </button>
             </div>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            Payment URI generated. Compatibility depends on the receiving
-            wallet.
-          </p>
         </div>
       </div>
     );
   }
 
   if (mode === "token") {
-    const addr = tokenAddress || bchAddress;
     return (
       <div className="max-w-md mx-auto px-4 py-10">
         <button
-          onClick={function () {
-            setMode("profile");
-          }}
+          onClick={() => setMode("profile")}
           className="text-sm text-[var(--text-muted)] mb-6 hover:text-[var(--text)]"
         >
           Back
@@ -125,27 +112,28 @@ export function ProfileClient(props: Props) {
             Scan address
           </p>
           <div className="flex justify-center">
-            <QRCode value={addr} size={200} />
+            <QRCode value={effectiveToken} size={200} />
           </div>
         </div>
         <div>
           <label className="label">CashToken receiving address</label>
           <div className="flex gap-2">
-            <code className="input-field flex-1 text-xs break-all">{addr}</code>
+            <code className="input-field flex-1 text-xs break-all">
+              {effectiveToken}
+            </code>
             <button
               className="btn-ghost text-xs shrink-0"
-              onClick={function () {
-                copy(addr, "token");
-              }}
+              onClick={() => copy(effectiveToken, "token")}
             >
               {copied === "token" ? "Copied" : "Copy"}
             </button>
           </div>
         </div>
-        <p className="text-xs text-[var(--text-muted)] mt-4">
-          Address sharing only. Wallet-specific CashToken transaction
-          construction can be added later.
-        </p>
+        {!tokenAddress && (
+          <p className="text-xs text-[var(--text-muted)] mt-4">
+            Using the verified BCH address (token-capable CashAddr).
+          </p>
+        )}
       </div>
     );
   }
@@ -167,27 +155,15 @@ export function ProfileClient(props: Props) {
         ) : null}
       </div>
       <div className="space-y-3">
-        <button
-          className="btn-primary w-full"
-          onClick={function () {
-            setMode("bch");
-          }}
-        >
+        <button className="btn-primary w-full" onClick={() => setMode("bch")}>
           SEND BCH
         </button>
-        <button
-          className="btn-ghost w-full"
-          onClick={function () {
-            setMode("token");
-          }}
-        >
+        <button className="btn-ghost w-full" onClick={() => setMode("token")}>
           SEND CASHTOKENS
         </button>
         <button
           className="btn-ghost w-full text-sm"
-          onClick={function () {
-            copy(profileUrl, "link");
-          }}
+          onClick={() => copy(profileUrl, "link")}
         >
           {copied === "link" ? "Link copied" : "COPY LINK"}
         </button>
