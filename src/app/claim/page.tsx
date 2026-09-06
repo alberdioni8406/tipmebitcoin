@@ -149,11 +149,10 @@ export default function ClaimPage() {
         body: JSON.stringify({
           handle,
           bchAddress,
-          tokenAddress: fromWalletConnect
-            ? bchAddress
-            : tokenAddress.trim()
-              ? tokenAddress.trim()
-              : undefined,
+          // Prefer token-aware address (z…/r…) set by WC conversion or manual input
+          tokenAddress: tokenAddress.trim()
+            ? tokenAddress.trim()
+            : undefined,
           action: "start",
         }),
       });
