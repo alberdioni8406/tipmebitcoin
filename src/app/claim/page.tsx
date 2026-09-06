@@ -335,9 +335,23 @@ export default function ClaimPage() {
               disabled={loading}
             />
             {walletName && bchAddress && (
-              <p className="text-xs text-[var(--accent)] font-mono">
-                Connected ({walletName}): {bchAddress.slice(0, 20)}…
-              </p>
+              <div className="flex items-center gap-3 border border-[var(--border)] p-3">
+                <img
+                  src="/wallet-connected.svg"
+                  alt="Wallet connected"
+                  width={40}
+                  height={40}
+                  className="shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs text-[var(--accent)] font-mono">
+                    Connected ({walletName})
+                  </p>
+                  <p className="text-xs font-mono text-[var(--text-muted)] truncate">
+                    {bchAddress}
+                  </p>
+                </div>
+              </div>
             )}
             <p className="text-xs text-[var(--text-muted)] text-center">
               — or paste address —
