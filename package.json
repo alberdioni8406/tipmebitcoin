@@ -2,6 +2,9 @@
   "name": "tipmebitcoin",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -24,7 +27,7 @@
     "bchaddrjs": "^0.5.2",
     "bitcoinjs-message": "^2.2.0",
     "qrcode.react": "^3.1.0",
-    "@walletconnect/sign-client": "^2.21.0"
+    "@walletconnect/sign-client": "^2.21.0",
     "cashaddrjs": "^0.4.4",
     "big-integer": "^1.6.52"
   },
