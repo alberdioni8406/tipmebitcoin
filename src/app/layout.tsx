@@ -2,6 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { PROJECT } from "@/config/project";
 
+const ogImage = {
+  url: "/og.png",
+  width: 1200,
+  height: 630,
+  alt: "TipMeBitcoin — Non-custodial BCH tipping identity",
+  type: "image/png" as const,
+};
+
 export const metadata: Metadata = {
   title: {
     default: `${PROJECT.name} — BCH Tipping Identity`,
@@ -26,11 +34,13 @@ export const metadata: Metadata = {
     siteName: PROJECT.name,
     locale: "en_US",
     type: "website",
+    images: [ogImage],
   },
   twitter: {
     card: "summary_large_image",
     title: `${PROJECT.name} — BCH Tipping Identity`,
     description: PROJECT.description,
+    images: [ogImage.url],
   },
   icons: {
     icon: [{ url: "/icon", type: "image/png" }],
