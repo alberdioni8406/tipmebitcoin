@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: `${PROJECT.name} — BCH Tipping Identity`,
     description: PROJECT.description,
   },
