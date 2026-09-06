@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="64" fill="#0a0a0a"/>
+  <rect x="24" y="24" width="464" height="464" rx="48" stroke="#00ff9c" stroke-width="4" opacity="0.35"/>
+  <rect x="128" y="176" width="256" height="176" rx="24" fill="#111" stroke="#00ff9c" stroke-width="8"/>
+  <rect x="128" y="176" width="256" height="56" rx="24" fill="#00ff9c" opacity="0.15"/>
+  <circle cx="336" cy="264" r="22" fill="#00ff9c"/>
+  <circle cx="336" cy="264" r="10" fill="#0a0a0a"/>
+  <circle cx="368" cy="152" r="48" fill="#00ff9c"/>
+  <path d="M348 152 L362 166 L392 136" stroke="#0a0a0a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="420" text-anchor="middle" font-family="ui-monospace, monospace" font-size="28" fill="#00ff9c" letter-spacing="4">CONNECTED</text>
+</svg>
