@@ -52,7 +52,7 @@ function formatRemaining(expiration: number): string {
   const left = Math.max(0, expiration - Math.floor(Date.now() / 1000));
   const m = Math.floor(left / 60);
   const s = left % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  return `\( {m}: \){s.toString().padStart(2, "0")}`;
 }
 
 export default function ClaimPage() {
@@ -77,6 +77,8 @@ export default function ClaimPage() {
   const [walletName, setWalletName] = useState<string | null>(null);
   const [wcSigning, setWcSigning] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  /** True when address came from WalletConnect — token uses same CashAddr */
+  const [fromWalletConnect, setFromWalletConnect] = useState(false);
 
   useEffect(() => {
     const stored = loadStored();
@@ -144,7 +146,11 @@ export default function ClaimPage() {
         body: JSON.stringify({
           handle,
           bchAddress,
-          tokenAddress,
+          tokenAddress: fromWalletConnect
+            ? bchAddress
+            : tokenAddress.trim()
+              ? tokenAddress.trim()
+              : undefined,
           action: "start",
         }),
       });
@@ -252,7 +258,20 @@ export default function ClaimPage() {
   }
 
   function onWalletConnected(address: string, name?: string) {
-    setBchAddress(address);
+    // Normalize: wallets sometimes return payload without bitcoincash:
+    let addr = address.trim();
+    if (
+      addr &&
+      !addr.toLowerCase().startsWith("bitcoincash:") &&
+      !addr.toLowerCase().startsWith("bchtest:") &&
+      (addr.startsWith("q") || addr.startsWith("p"))
+    ) {
+      addr = `bitcoincash:${addr}`;
+    }
+    setBchAddress(addr);
+    // Modern BCH CashAddr is token-capable — bind same address for CashTokens
+    setTokenAddress(addr);
+    setFromWalletConnect(true);
     setWalletName(name || "BCH wallet");
     setError("");
   }
@@ -323,7 +342,10 @@ export default function ClaimPage() {
             <input
               className="input-field"
               value={bchAddress}
-              onChange={(e) => setBchAddress(e.target.value)}
+              onChange={(e) => {
+                setBchAddress(e.target.value);
+                setFromWalletConnect(false);
+              }}
               placeholder="bitcoincash:q..."
               required
               autoComplete="off"
@@ -331,22 +353,30 @@ export default function ClaimPage() {
             />
           </div>
 
-          <div>
-            <label className="label">
-              CASHTOKEN RECEIVING ADDRESS (optional)
-            </label>
-            <input
-              className="input-field"
-              value={tokenAddress}
-              onChange={(e) => setTokenAddress(e.target.value)}
-              placeholder="bitcoincash:q... (token-capable)"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-xs text-[var(--text-muted)] mt-1">
-              Bound into the signed challenge; cannot be changed after signing.
+          {fromWalletConnect ? (
+            <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] p-3">
+              CashToken receiving address: same as connected BCH address
+              (token-capable CashAddr). No extra field needed.
             </p>
-          </div>
+          ) : (
+            <div>
+              <label className="label">
+                CASHTOKEN RECEIVING ADDRESS (optional)
+              </label>
+              <input
+                className="input-field"
+                value={tokenAddress}
+                onChange={(e) => setTokenAddress(e.target.value)}
+                placeholder="bitcoincash:q... (token-capable)"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Leave empty to use your BCH address for tokens. Only fill if you
+                want a different token-capable address (Electron Cash / manual).
+              </p>
+            </div>
+          )}
 
           <p className="text-xs text-[var(--text-muted)] border border-[var(--border)] p-3">
             Your verified BCH address is your recovery authority. Private keys
@@ -393,7 +423,6 @@ export default function ClaimPage() {
             <span className="font-mono text-xs break-all">{bchAddress}</span>
           </p>
 
-          {/* Primary: wallet sign if session may exist */}
           <button
             type="button"
             className="btn-primary w-full"
